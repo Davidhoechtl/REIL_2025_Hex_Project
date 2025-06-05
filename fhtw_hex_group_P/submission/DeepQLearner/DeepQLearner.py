@@ -53,18 +53,29 @@ class ReplayBuffer:
 class DQN(nn.Module):
     def __init__(self, board_size, action_dim):
         super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(board_size * board_size, 128),
+        self.board_size = board_size
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=3, padding=1),  # (B,1,5,5) -> (B,32,5,5)
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Conv2d(32, 64, kernel_size=3, padding=1), # (B,64,5,5)
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1), # (B,64,5,5)
+            nn.ReLU()
+        )
+        self.fc_layers = nn.Sequential(
+            nn.Linear(64 * board_size * board_size, 512),
             nn.ReLU(),
-            nn.Linear(128, action_dim)
+            nn.Dropout(p=0.3),
+            nn.Linear(512, action_dim)
         )
 
     def forward(self, x):
-        return self.model(x)
+        # x shape: (batch_size, 25)
+        x = x.view(-1, 1, self.board_size, self.board_size)  # (B,1,5,5)
+        x = self.conv_layers(x)
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.fc_layers(x)
+        return x
 
 class HexDQNAgent(nn.Module):
     def __init__(self, board_size, replay_buffer_size=10_000):
@@ -75,6 +86,7 @@ class HexDQNAgent(nn.Module):
         self.target_net = DQN(board_size, self.action_dim)
         self.update_target()
         self.optimizer = optim.Adam(self.q_net.parameters(), lr=1e-3)
+        self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.95)
         self.gamma = 0.99
         self.epsilon = 1.0
         self.epsilon_min = 0.05
@@ -88,8 +100,9 @@ class HexDQNAgent(nn.Module):
         self.device = device
         self.memory = ReplayBuffer(capacity=replay_buffer_size, board_size=board_size)
 
-    def update_target(self):
-        self.target_net.load_state_dict(self.q_net.state_dict())
+    def update_target(self, tau=1e-2):
+        for target_param, param in zip(self.target_net.parameters(), self.q_net.parameters()):
+            target_param.data.copy_(tau * param.data + (1.0 - tau) * target_param.data)
 
     def select_action(self, board, action_set):
         if random.random() < self.epsilon:
@@ -126,15 +139,20 @@ class HexDQNAgent(nn.Module):
 
         q_vals = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze()
         with torch.no_grad():
-            next_q = self.target_net(next_states).max(1)[0]
+            best_actions = self.q_net(next_states).argmax(1) # use double DQN target
+            next_q = self.target_net(next_states).gather(1, best_actions.unsqueeze(1)).squeeze()
             target = rewards + self.gamma * next_q * (1 - dones)
 
         loss = nn.MSELoss()(q_vals, target)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        self.lr_scheduler.step()
 
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
+
+        self.update_target(tau=1e-3)
+
         return loss
 
 _agent_instance = None
