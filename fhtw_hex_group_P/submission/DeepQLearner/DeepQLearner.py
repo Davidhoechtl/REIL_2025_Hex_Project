@@ -58,6 +58,8 @@ class DQN(nn.Module):
             nn.ReLU(),
             nn.Linear(128, 128),
             nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
             nn.Linear(128, action_dim)
         )
 
@@ -65,7 +67,7 @@ class DQN(nn.Module):
         return self.model(x)
 
 class HexDQNAgent(nn.Module):
-    def __init__(self, board_size, replay_buffer = None):
+    def __init__(self, board_size, replay_buffer_size=10_000):
         super().__init__()
         self.board_size = board_size
         self.action_dim = board_size * board_size
@@ -77,9 +79,14 @@ class HexDQNAgent(nn.Module):
         self.epsilon = 1.0
         self.epsilon_min = 0.05
         self.epsilon_decay = 0.995
-        self.memory = replay_buffer
-        if replay_buffer is None:
-            self.memory = ReplayBuffer(capacity=10000, board_size=board_size)
+        if torch.cuda.is_available():
+            device = torch.device("cuda")
+        elif torch.backends.mps.is_available():
+            device = torch.device("mps")
+        else:
+            device = torch.device("cpu")
+        self.device = device
+        self.memory = ReplayBuffer(capacity=replay_buffer_size, board_size=board_size)
 
     def update_target(self):
         self.target_net.load_state_dict(self.q_net.state_dict())
@@ -88,15 +95,18 @@ class HexDQNAgent(nn.Module):
         if random.random() < self.epsilon:
             return random.choice(action_set)
 
-        state = torch.tensor(board.flatten(), dtype=torch.float32).unsqueeze(0)
+        state = torch.tensor(board.flatten(), dtype=torch.float32).unsqueeze(0).to(self.device)
         with torch.no_grad():
             q_values = self.q_net(state).squeeze()
 
         # Mask illegal actions
         masked_q = torch.full_like(q_values, -float('inf'))
         for a in action_set:
-            masked_q[a] = q_values[a]
-        return masked_q.argmax().item()
+            a_index = a[0] * self.board_size + a[1] # convert [x,y] into [n]. 2d index into flattened 1d index
+            masked_q[a_index] = q_values[a_index]
+
+        best_action_index = masked_q.argmax().item()
+        return divmod(best_action_index, self.board_size)  # return (x, y) tuple
 
     def store_transition(self, s, a, r, s_next, done):
         self.memory.push(s, a, r, s_next, done)
@@ -127,14 +137,6 @@ class HexDQNAgent(nn.Module):
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         return loss
 
-def load_dqn_agent(path):
-    model = HexDQNAgent(config.BOARD_SIZE)
-    model.load_state_dict(torch.load(path))
-    global _agent_instance
-    _agent_instance = model
-    if _agent_instance is not None:
-        print("Successfully loaded the model from .pt file.")
-
 _agent_instance = None
 def dqn_agent(board, action_set):
     global _agent_instance
@@ -142,3 +144,11 @@ def dqn_agent(board, action_set):
     if _agent_instance is None:
        _agent_instance = HexDQNAgent(board_size)
     return _agent_instance.select_action(np.array(board), action_set)
+
+def load_dqn_agent(path):
+    model = HexDQNAgent(config.BOARD_SIZE)
+    model.load_state_dict(torch.load(path))
+    global _agent_instance
+    _agent_instance = model
+    if _agent_instance is not None:
+        print("Successfully loaded the model from .pt file.")

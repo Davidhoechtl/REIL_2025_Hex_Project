@@ -62,4 +62,4 @@ def evaluate_agent(env, dqn_agent_function, num_games=100):
 if __name__ == "__main__":
     environment = hexPosition(config.BOARD_SIZE)
     load_dqn_agent("dqnagent.pt")
-    evaluate_agent(environment, dqn_agent, num_games=100)
+    evaluate_agent(environment, dqn_agent, num_games=400)
