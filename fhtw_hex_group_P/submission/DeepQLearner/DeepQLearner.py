@@ -4,6 +4,7 @@ import torch.optim as optim
 import numpy as np
 import random
 from collections import deque
+import submission.config as config
 
 class ReplayBuffer:
     def __init__(self, capacity, board_size):
@@ -125,6 +126,14 @@ class HexDQNAgent(nn.Module):
 
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
         return loss
+
+def load_dqn_agent(path):
+    model = HexDQNAgent(config.BOARD_SIZE)
+    model.load_state_dict(torch.load(path))
+    global _agent_instance
+    _agent_instance = model
+    if _agent_instance is not None:
+        print("Successfully loaded the model from .pt file.")
 
 _agent_instance = None
 def dqn_agent(board, action_set):
