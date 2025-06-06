@@ -39,10 +39,10 @@ class ReplayBuffer:
         batch = random.sample(self.buffer, batch_size)
         states, actions, rewards, next_states, dones = zip(*batch)
 
-        states = torch.stack(states).view(len(states), -1).float()
+        states = torch.stack(states).float()
         actions = torch.tensor(actions, dtype=torch.int64)
         rewards = torch.tensor(rewards, dtype=torch.float32)
-        next_states = torch.stack(next_states).view(len(next_states), -1).float()
+        next_states = torch.stack(next_states).float()
         dones = torch.tensor(dones, dtype=torch.float32)
 
         return states, actions, rewards, next_states, dones
@@ -50,31 +50,51 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+class ResidualBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.conv_block = nn.Sequential(
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channels),
+            nn.ReLU(),
+            nn.Conv2d(channels, channels, kernel_size=3, padding=1),
+            nn.BatchNorm2d(channels)
+        )
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        return self.relu(x + self.conv_block(x))
+
 class DQN(nn.Module):
     def __init__(self, board_size, action_dim):
         super().__init__()
         self.board_size = board_size
-        self.conv_layers = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1),  # (B,1,5,5) -> (B,32,5,5)
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), # (B,64,5,5)
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, padding=1), # (B,64,5,5)
+
+        self.initial = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
+            nn.BatchNorm2d(64),
             nn.ReLU()
         )
-        self.fc_layers = nn.Sequential(
-            nn.Linear(64 * board_size * board_size, 512),
+
+        self.res_blocks = nn.Sequential(
+            ResidualBlock(64),
+            ResidualBlock(64),
+            nn.AvgPool2d(kernel_size=2, stride=1),  # preserves output shape at 5x5
+            ResidualBlock(64),
+        )
+
+        self.head = nn.Sequential(
+            nn.Flatten(),  # from (B, 64, 5, 5) → (B, 1600)
+            nn.Linear(64 * 6 * 6, 512), #pooling reduces wxh
             nn.ReLU(),
             nn.Dropout(p=0.3),
-            nn.Linear(512, action_dim)
+            nn.Linear(512, action_dim)  # final layer: [B, 25]
         )
 
     def forward(self, x):
-        # x shape: (batch_size, 25)
-        x = x.view(-1, 1, self.board_size, self.board_size)  # (B,1,5,5)
-        x = self.conv_layers(x)
-        x = x.view(x.size(0), -1)  # Flatten
-        x = self.fc_layers(x)
+        x = self.initial(x)
+        x = self.res_blocks(x)
+        x = self.head(x)
         return x
 
 class HexDQNAgent(nn.Module):
@@ -85,7 +105,7 @@ class HexDQNAgent(nn.Module):
         self.q_net = DQN(board_size, self.action_dim)
         self.target_net = DQN(board_size, self.action_dim)
         self.update_target()
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=1e-3)
+        self.optimizer = optim.Adam(self.q_net.parameters(), lr=1e-4)
         self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.95)
         self.gamma = 0.99
         self.epsilon = 1.0
@@ -108,7 +128,7 @@ class HexDQNAgent(nn.Module):
         if random.random() < self.epsilon:
             return random.choice(action_set)
 
-        state = torch.tensor(board.flatten(), dtype=torch.float32).unsqueeze(0).to(self.device)
+        state = self.convert_state_to_input(board)  # shape: (3, board_size, board_size)
         with torch.no_grad():
             q_values = self.q_net(state).squeeze()
 
@@ -130,11 +150,12 @@ class HexDQNAgent(nn.Module):
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
         # Move batch to the model’s device
+        states = self.convert_state_to_input(states)
+        next_states = self.convert_state_to_input(next_states)
+
         device = next(self.parameters()).device
-        states = states.to(device)
         actions = actions.to(device)
         rewards = rewards.to(device)
-        next_states = next_states.to(device)
         dones = dones.to(device)
 
         q_vals = self.q_net(states).gather(1, actions.unsqueeze(1)).squeeze()
@@ -155,6 +176,22 @@ class HexDQNAgent(nn.Module):
 
         return loss
 
+    def convert_state_to_input(self, boards):
+        # boards: shape (B, board_size, board_size)
+        if len(boards.shape) == 3:
+            # batch of boards
+            player_stones = (boards == 1).float()
+            opponent_stones = (boards == -1).float()
+            legal_moves = (boards == 0).float()
+            return torch.stack([player_stones, opponent_stones, legal_moves], dim=1)  # (B, 3, H, W)
+        elif len(boards.shape) == 2:
+            # single board
+            player_stones = (boards == 1).float()
+            opponent_stones = (boards == -1).float()
+            legal_moves = (boards == 0).float()
+            return torch.stack([player_stones, opponent_stones, legal_moves], dim=0).unsqueeze(0)  # (1, 3, H, W)
+        else:
+            raise ValueError(f"Unexpected board shape: {boards.shape}")
 _agent_instance = None
 def dqn_agent(board, action_set):
     global _agent_instance

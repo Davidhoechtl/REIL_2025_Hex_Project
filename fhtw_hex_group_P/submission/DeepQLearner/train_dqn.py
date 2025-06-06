@@ -26,16 +26,16 @@ def generate_self_play_data(env, dqn_agent_model, opponents, device, num_games=1
         state = deepcopy(env.board)
 
         # Randomly decide who goes first and which agent is which
-        dqn_player = 1
+        dqn_player = 1 # IMPORTANT NEED TO BE 1 for the model. Feature engineering what is player move what enemy is bound to this. see select_action in DeepQLearner.py
         opponent_fn = random.choice(opponents)
 
         trajectory = []
         while env.winner == 0:
             action_set = env.get_action_space()
             if env.player == dqn_player:
-                action = dqn_agent_model.select_action(np.array(state), action_set)
+                action = dqn_agent_model.select_action(torch.tensor(state, dtype=torch.float32), action_set)
             else:
-                action = opponent_fn(np.array(state), action_set)
+                action = opponent_fn(torch.tensor(state, dtype=torch.float32), action_set)
             scalar_action = env.coordinate_to_scalar(action)
 
             env.move(action)
@@ -93,13 +93,16 @@ if __name__ == "__main__":
     win_rates = []
 
     # initialize the model and provide it with the data
-    model = HexDQNAgent(config.BOARD_SIZE, 3000).to(device)
+    model = HexDQNAgent(config.BOARD_SIZE, 5000).to(device)
     generate_self_play_data(env, model, [model.select_action], device, num_games=100)  # model plays next 100 games to refill the replay buffer
+    local = deepcopy(model)  # keep a local copy of the model for evaluation
     for epoch in range(config.EPOCHS):
         if epoch % config.new_games_played_in_epoch == 0:
-            win_rate = generate_self_play_data(env, model, [greedy_agent], device, num_games=20)
+            win_rate = generate_self_play_data(env, model, [local.select_action], device, num_games=100)
             win_rate_for_game_cycle = [win_rate] * config.new_games_played_in_epoch
             win_rates.extend(win_rate_for_game_cycle)
+            local = deepcopy(model)  # keep a local copy of the model for evaluation
+
         loss = model.train_step(batch_size=128)
         print(f"Epoch {epoch + 1}/{config.EPOCHS}, Loss: {loss:.4f}")
 
@@ -130,3 +133,5 @@ if __name__ == "__main__":
     plt.legend()
     plt.grid(True)
     plt.show()
+
+    input("Training complete. Press Enter to exit...")
