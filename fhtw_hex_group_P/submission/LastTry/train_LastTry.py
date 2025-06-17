@@ -9,6 +9,58 @@ from submission.baseline_agent import random_agent, greedy_agent
 import random
 import matplotlib.pyplot as plt
 import os
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+def generate_self_play_data_static(model_fn, static, num_games=10):
+    for game_idx in range(num_games):
+        game = hexPosition(size=config.BOARD_SIZE)
+        game.reset()
+        trajectory = []
+
+        player_turn = 1
+
+        while game.winner == 0:
+            state = deepcopy(game.board)
+            action_space = game.get_action_space()
+
+            # model makes a move
+            if game.player == player_turn:
+                action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
+            else:
+                action = static.select_action(torch.tensor(state, dtype=torch.float32), action_space)
+
+            scalar_action = game.coordinate_to_scalar(action)
+
+            game.move(action)
+            next_state = deepcopy(game.board)
+            done = game.winner != 0
+
+            # store state before move
+            if game.player == player_turn:
+                trajectory.append({
+                    "state": state,
+                    "action": scalar_action,
+                    "next_state": next_state,
+                    "done": done,
+                    "player": player_turn
+                })
+
+        # assign rewards after game ends
+        for step in trajectory:
+            if step["player"] == game.winner:
+                step["reward"] = 1
+            elif game.winner == 0:
+                step["reward"] = 0
+            else:
+                step["reward"] = -1
+
+            model_fn.store_transition(
+                torch.tensor(step["state"], dtype=torch.float32),
+                step["action"],
+                step["reward"],
+                torch.tensor(step["next_state"], dtype=torch.float32),
+                step["done"]
+            )
 
 def generate_self_play_data(model_fn, num_games=10):
     for game_idx in range(num_games):
@@ -22,10 +74,12 @@ def generate_self_play_data(model_fn, num_games=10):
 
             # model makes a move
             action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
-            scalar_action = env.coordinate_to_scalar(action)
+            scalar_action = game.coordinate_to_scalar(action)
 
-            next_state = deepcopy(env.board)
-            done = env.winner != 0
+            game.move(action)
+
+            next_state = deepcopy(game.board)
+            done = game.winner != 0
 
             # store state before move
             trajectory.append({
@@ -35,8 +89,6 @@ def generate_self_play_data(model_fn, num_games=10):
                 "done": done,
                 "player": game.player
             })
-
-            game.move(action)
 
         # assign rewards after game ends
         for step in trajectory:
@@ -104,16 +156,15 @@ if __name__ == "__main__":
     print("Using device:", device)
 
     # generate data through self playing
-    env = hexPosition(size=config.BOARD_SIZE)
     model = Agent().to(device)
     noob = deepcopy(model)
-    generate_self_play_data(model, num_games=500)
+    generate_self_play_data_static(model, noob, num_games=500)
     epoch_loss = []
 
     current_win_rate = 0
-    for epoch in range(1000):
-        if epoch+1 % config.new_games_played_in_epoch == 0:
-            generate_self_play_data(model, num_games=100)
+    for epoch in range(1001):
+        # if epoch+1 % config.new_games_played_in_epoch == 0:
+        #     generate_self_play_data_static(model, noob, num_games=50)
         if epoch%50==0:
             current_win_rate = validate(model,noob,20)
 

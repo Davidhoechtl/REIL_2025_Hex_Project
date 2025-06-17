@@ -74,9 +74,8 @@ class GameNet(nn.Module):
     -player stones
     -opponent stones
     -legal moves
-    -skalar channel for which turn it is
     """
-    def __init__(self, input_channels=4):
+    def __init__(self, input_channels=3):
         super(GameNet, self).__init__()
         self.initial_conv = nn.Conv2d(input_channels, 256, kernel_size=3, stride=1, padding=1)
         self.initial_bn = nn.BatchNorm2d(256)
@@ -147,6 +146,17 @@ class Agent(nn.Module):
 
             legal_indices = [a[0] * self.board_size + a[1] for a in action_set]
             legal_probs = probs[legal_indices]
+
+            EPS = 1e-8
+            if legal_probs.sum() < EPS:
+                # fallback to uniform over legal moves
+                if len(legal_indices) == 1:
+                    # only one legal move
+                    chosen_index = legal_indices[0]
+                else:
+                    chosen_index = legal_indices[torch.randint(len(legal_indices), (1,))]
+                return divmod(chosen_index, self.board_size)
+
             legal_probs /= legal_probs.sum()
             chosen_index = torch.multinomial(legal_probs, 1).item()
             chosen_action = action_set[chosen_index]
@@ -229,7 +239,6 @@ class Agent(nn.Module):
           - Channel 0: current player's stones (1s)
           - Channel 1: opponent's stones (1s)
           - Channel 2: legal moves (1s where empty)
-          - Channel 3: scalar plane indicating the current turn (all 1s if player turn, else 0s)
 
         Assumes:
           - board is a 2D tensor of shape (board_size, board_size)
@@ -241,9 +250,8 @@ class Agent(nn.Module):
             opponent_plane = (board == -1).float()
             legal_plane = (board == 0).float()
             player_turn = 1 if (board == 1).sum() <= (board == -1).sum() else 0
-            turn_plane = torch.full((board_size, board_size), float(player_turn))
 
-            input_tensor = torch.stack([player_plane, opponent_plane, legal_plane, turn_plane], dim=0)
+            input_tensor = torch.stack([player_plane, opponent_plane, legal_plane], dim=0)
             return input_tensor
         else:
             raise ValueError(f"Unexpected board shape: {board.shape}")
