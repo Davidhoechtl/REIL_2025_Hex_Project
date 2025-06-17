@@ -55,14 +55,14 @@ def generate_self_play_data(env, dqn_agent_model, opponents, device, num_games=1
             state = next_state
 
         # Assign final reward based on winner
-        reward = 1 if env.winner == dqn_player else -1  # white wins: +1, black wins: -1
+        reward = 2 if env.winner == dqn_player else -1  # white wins: +1, black wins: -1
         if env.winner == dqn_player:
             player_games_won += 1
 
         for idx, step in enumerate(trajectory):
             penalty = config.step_penalty * idx
-            #step["reward"] = reward - penalty  # final outcome reward for all moves
-            step["reward"] = reward # final outcome reward for all moves
+            step["reward"] = reward - penalty  # final outcome reward for all moves
+            #step["reward"] = reward # final outcome reward for all moves
 
             dqn_agent_model.store_transition(
                 torch.tensor(step["state"], dtype=torch.float32),
@@ -110,15 +110,15 @@ if __name__ == "__main__":
     # initialize the model and provide it with the data
     model = A2CAgent(config.BOARD_SIZE, 5000).to(device)
     generate_self_play_data(env, model, [random_agent], device, num_games=1000)  # model plays next 100 games to refill the replay buffer
-    #local = deepcopy(model)  # keep a local copy of the model for evaluation
+    local = deepcopy(model)  # keep a local copy of the model for evaluation
     for epoch in range(config.EPOCHS):
         if epoch % config.new_games_played_in_epoch == 0:
             win_rate = generate_self_play_data(env, model, [random_agent], device, num_games=100)
             win_rate_for_game_cycle = [win_rate] * config.new_games_played_in_epoch
             win_rates.extend(win_rate_for_game_cycle)
-            #local = deepcopy(model)  # keep a local copy of the model for evaluation
+            local = deepcopy(model)  # keep a local copy of the model for evaluation
 
-        loss = model.train_step(batch_size=128)
+        loss = model.train_step(batch_size=256)
         print_training_stats(loss, step=epoch)
         #print(f"Epoch {epoch + 1}/{config.EPOCHS}, Loss: {loss:.4f}")
 

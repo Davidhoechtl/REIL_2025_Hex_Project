@@ -116,6 +116,7 @@ class A2CAgent(nn.Module):
         self.target_net.load_state_dict(self.net.state_dict())
 
         self.optimizer = optim.Adam(self.net.parameters(), lr=1e-4)
+        self.lr_scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=10, gamma=0.99)
         self.gamma = 0.99
         self.tau = tau
         if torch.cuda.is_available():
@@ -132,7 +133,6 @@ class A2CAgent(nn.Module):
 
     def select_action(self, board, action_set):
         assert len(action_set) > 0, "action_set is empty!"
-
         state = self.convert_state_to_input(board).to(self.device)
         with torch.no_grad():
             logits, _ = self.net(state)
@@ -205,6 +205,7 @@ class A2CAgent(nn.Module):
         loss.backward()
         torch.nn.utils.clip_grad_norm_(self.net.parameters(), max_norm=1.0)
         self.optimizer.step()
+        self.lr_scheduler.step()
         self.update_target_net()
         return {
             "loss": loss.item(),

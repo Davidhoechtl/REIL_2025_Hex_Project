@@ -85,7 +85,7 @@ class DQN(nn.Module):
 
         self.head = nn.Sequential(
             nn.Flatten(),  # from (B, 64, 5, 5) → (B, 1600)
-            nn.Linear(64 * 6 * 6, 512), #pooling reduces wxh
+            nn.Linear(64 * 4 * 4, 512), #pooling reduces wxh
             nn.ReLU(),
             nn.Dropout(p=0.3),
             nn.Linear(512, action_dim)  # final layer: [B, 25]
@@ -128,7 +128,7 @@ class HexDQNAgent(nn.Module):
         if random.random() < self.epsilon:
             return random.choice(action_set)
 
-        state = self.convert_state_to_input(board)  # shape: (3, board_size, board_size)
+        state = self.convert_state_to_input(board).to(self.device)  # shape: (3, board_size, board_size)
         with torch.no_grad():
             q_values = self.q_net(state).squeeze()
 
@@ -154,6 +154,8 @@ class HexDQNAgent(nn.Module):
         next_states = self.convert_state_to_input(next_states)
 
         device = next(self.parameters()).device
+        states = states.to(device)
+        next_states = next_states.to(device)
         actions = actions.to(device)
         rewards = rewards.to(device)
         dones = dones.to(device)

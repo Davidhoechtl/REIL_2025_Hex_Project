@@ -94,14 +94,14 @@ if __name__ == "__main__":
 
     # initialize the model and provide it with the data
     model = HexDQNAgent(config.BOARD_SIZE, 5000).to(device)
-    generate_self_play_data(env, model, [model.select_action], device, num_games=100)  # model plays next 100 games to refill the replay buffer
-    local = deepcopy(model)  # keep a local copy of the model for evaluation
+    generate_self_play_data(env, model, [random_agent], device, num_games=1000)  # model plays next 100 games to refill the replay buffer
+    #local = deepcopy(model)  # keep a local copy of the model for evaluation
     for epoch in range(config.EPOCHS):
         if epoch % config.new_games_played_in_epoch == 0:
-            win_rate = generate_self_play_data(env, model, [local.select_action], device, num_games=100)
+            win_rate = generate_self_play_data(env, model, [random_agent], device, num_games=100)
             win_rate_for_game_cycle = [win_rate] * config.new_games_played_in_epoch
             win_rates.extend(win_rate_for_game_cycle)
-            local = deepcopy(model)  # keep a local copy of the model for evaluation
+            #local = deepcopy(model)  # keep a local copy of the model for evaluation
 
         loss = model.train_step(batch_size=128)
         print(f"Epoch {epoch + 1}/{config.EPOCHS}, Loss: {loss:.4f}")
