@@ -2,6 +2,7 @@ import torch
 from copy import deepcopy
 from hex_engine import hexPosition
 import heapq
+import submission.config as config
 
 def shortest_path_cost(board, player=1):
     size = len(board)
@@ -43,7 +44,7 @@ def shortest_path_cost(board, player=1):
     return float('inf')
 
 
-def generate_play_data(model_fn, enemy_fn, num_steps, board_size):
+def generate_play_data(model_fn, enemy_fn, num_steps):
     """
     Generate play data by simulating games between model_fn and enemy_fn.
 
@@ -63,7 +64,7 @@ def generate_play_data(model_fn, enemy_fn, num_steps, board_size):
     total_games = 0
 
     while steps_collected < num_steps:
-        game = hexPosition(size=board_size)
+        game = hexPosition(size=config.BOARD_SIZE)
         game.reset()
         trajectory = []
 
@@ -117,7 +118,7 @@ def generate_play_data(model_fn, enemy_fn, num_steps, board_size):
 
             # Combine shaped reward and final reward:
             # For example, weight final reward higher
-            combined_reward = 0.8 * step["reward"] + 0.2 * step["shaped_reward"]
+            combined_reward = 0.8 * step["reward"] + 0.4 * step["shaped_reward"]
 
             transition = (
                 torch.tensor(step["state"], dtype=torch.float32),

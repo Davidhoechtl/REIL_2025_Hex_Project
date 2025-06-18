@@ -10,6 +10,7 @@ import random
 import matplotlib.pyplot as plt
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+from submission.LastTry.gameDataGeneration import generate_play_data as generate_play_data_with_heuristics
 
 def generate_play_data(model_fn, enemy_fn, num_steps):
     """
@@ -182,7 +183,7 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
-    epochs = 1000
+    epochs = 100
     steps_per_epoch= 2048
     batch_size = 1024
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
@@ -191,7 +192,7 @@ if __name__ == "__main__":
 
     for epoch in range(epochs):
         # 1. Generate play data from self-play
-        transitions, win_rate = generate_play_data(model, random_agent, steps_per_epoch)
+        transitions, win_rate = generate_play_data_with_heuristics(model, random_agent, steps_per_epoch)
 
         # 2. Unpack the data
         states, actions, rewards, next_states, dones = zip(*transitions)
