@@ -14,7 +14,7 @@ from submission.LastTry.GameNetMedium import GameNet as GameNetMedium
 
 
 class Agent(nn.Module):
-    def __init__(self, lr=0.0001):
+    def __init__(self, total_steps, lr=0.0005 ):
         super().__init__()
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -26,10 +26,10 @@ class Agent(nn.Module):
         self.board_size = config.BOARD_SIZE
         self.policy_net = GameNetMedium().to(self.device)
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
-
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_steps, eta_min=1e-5)
         self.gamma = 0.99
         self.entropy_coef = 0.01
-        self.critic_coef = 0.5
+        self.critic_coef = 0.8
 
     def select_action(self, board, action_set):
         """
@@ -103,7 +103,7 @@ class Agent(nn.Module):
         total_loss.backward()
         torch.nn.utils.clip_grad_norm_(self.policy_net.parameters(), max_norm=1.0)
         self.optimizer.step()
-
+        self.scheduler.step()
         return {
             "loss": total_loss.item(),
             "actor": actor_loss.mean().item(),

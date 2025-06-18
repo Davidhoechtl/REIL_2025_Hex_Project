@@ -182,11 +182,13 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
-    model = Agent().to(device)
-
     epochs = 1000
     steps_per_epoch= 2048
-    batch_size = 512
+    batch_size = 1024
+    learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
+
+    model = Agent(learning_steps).to(device)
+
     for epoch in range(epochs):
         # 1. Generate play data from self-play
         transitions, win_rate = generate_play_data(model, random_agent, steps_per_epoch)
