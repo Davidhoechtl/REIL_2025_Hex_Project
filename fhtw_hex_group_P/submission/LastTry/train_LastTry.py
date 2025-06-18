@@ -11,32 +11,49 @@ import matplotlib.pyplot as plt
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
-def generate_self_play_data_static(model_fn, static, num_games=10):
-    for game_idx in range(num_games):
+def generate_play_data(model_fn, enemy_fn, num_steps):
+    """
+    Generate play data by simulating games between model_fn and enemy_fn.
+
+    Each step generates a transition tuple and stores it into a list, which can
+    later be used for batch training or analysis.
+
+    Args:
+        model_fn: The agent to collect training data for (must have `select_action`)
+        enemy_fn: The opponent agent
+        num_steps: Number of moves to generate
+
+    Returns:
+        List of transition tuples: (state, action, reward, next_state, done)
+    """
+    database = []
+    steps_collected = 0
+    wins = 0
+    total_games = 0
+    while steps_collected < num_steps:
         game = hexPosition(size=config.BOARD_SIZE)
         game.reset()
         trajectory = []
 
-        player_turn = 1
+        player_turn = 1  # the one we collect data for
 
         while game.winner == 0:
             state = deepcopy(game.board)
             action_space = game.get_action_space()
 
-            # model makes a move
             if game.player == player_turn:
                 action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
             else:
-                action = static.select_action(torch.tensor(state, dtype=torch.float32), action_space)
+                # action = enemy_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
+                 action = enemy_fn(torch.tensor(state, dtype=torch.float32), action_space)
 
             scalar_action = game.coordinate_to_scalar(action)
-
             game.move(action)
             next_state = deepcopy(game.board)
             done = game.winner != 0
 
-            # store state before move
-            if game.player == player_turn:
+            # Only collect data for model_fn's moves
+            if game.player != player_turn:  # record previous move
                 trajectory.append({
                     "state": state,
                     "action": scalar_action,
@@ -45,7 +62,11 @@ def generate_self_play_data_static(model_fn, static, num_games=10):
                     "player": player_turn
                 })
 
-        # assign rewards after game ends
+        total_games+=1
+        if game.winner == player_turn:
+            wins+=1
+
+        # Assign rewards based on outcome
         for step in trajectory:
             if step["player"] == game.winner:
                 step["reward"] = 1
@@ -54,13 +75,19 @@ def generate_self_play_data_static(model_fn, static, num_games=10):
             else:
                 step["reward"] = -1
 
-            model_fn.store_transition(
+            transition = (
                 torch.tensor(step["state"], dtype=torch.float32),
                 step["action"],
                 step["reward"],
                 torch.tensor(step["next_state"], dtype=torch.float32),
                 step["done"]
             )
+            database.append(transition)
+            steps_collected += 1
+            if steps_collected >= num_steps:
+                break
+
+    return database, wins/total_games
 
 def generate_self_play_data(model_fn, num_games=10):
     for game_idx in range(num_games):
@@ -155,30 +182,45 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
-    # generate data through self playing
     model = Agent().to(device)
-    noob = deepcopy(model)
-    generate_self_play_data_static(model, noob, num_games=500)
-    epoch_loss = []
 
-    current_win_rate = 0
-    for epoch in range(1001):
-        # if epoch+1 % config.new_games_played_in_epoch == 0:
-        #     generate_self_play_data_static(model, noob, num_games=50)
-        if epoch%50==0:
-            current_win_rate = validate(model,noob,20)
+    epochs = 1000
+    steps_per_epoch= 2048
+    batch_size = 512
+    for epoch in range(epochs):
+        # 1. Generate play data from self-play
+        transitions, win_rate = generate_play_data(model, random_agent, steps_per_epoch)
 
-        loss = model.train_step(batch_size=64)
-        epoch_loss.append(loss['loss'])
-        print_training_stats(loss, current_win_rate, step=epoch)
+        # 2. Unpack the data
+        states, actions, rewards, next_states, dones = zip(*transitions)
 
-    # After training, plot the loss curve
-    plt.figure(figsize=(8, 5))
-    plt.plot(range(1, len(epoch_loss) + 1), epoch_loss, label="win rate")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.title("Training Loss over Epochs")
-    plt.legend()
-    plt.grid(True)
-    plt.show()
+        states = torch.stack(states)
+        actions = torch.tensor(actions, dtype=torch.long)
+        rewards = torch.tensor(rewards, dtype=torch.float32)
+        next_states = torch.stack(next_states)
+        dones = torch.tensor(dones, dtype=torch.float32)
+
+        # 3. Train in batches
+        total_batches = len(states) // batch_size
+        logs = []
+        for i in range(total_batches):
+            start = i * batch_size
+            end = start + batch_size
+            log = model.train_step(
+                states[start:end],
+                actions[start:end],
+                rewards[start:end],
+                next_states[start:end],
+                dones[start:end],
+                batch_size=batch_size
+            )
+            logs.append(log)
+
+        # 4. Print average stats per epoch
+        avg_loss = sum(l["loss"] for l in logs) / len(logs)
+        avg_actor = sum(l["actor"] for l in logs) / len(logs)
+        avg_critic = sum(l["critic"] for l in logs) / len(logs)
+        print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f}")
+
+    print("Training complete.")
 
