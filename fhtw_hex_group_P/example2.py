@@ -10,15 +10,15 @@ game = engine.hexPosition()
 #this is how your agent can be imported
 #'submission' is the (sub)package that you provide
 #please use a better name that identifies your group
-from submission.facade import agent
-from submission.baseline_agent import greedy_agent, random_agent
+from submission.facade_group_p import agent_white, agent_black
+from submission.baseline_agent import random_agent, greedy_agent
 
 #make sure that the agent you have provided is such that the following three
 #method-calls are error-free and as expected
 
 #let your agent play against random
 #game.human_vs_machine(human_player=1, machine=agent)
-game.machine_vs_machine(machine1=random_agent, machine2=random_agent)
+game.machine_vs_machine(machine1=agent_white, machine2=agent_black)
 
 #let your agent play against itself
 #game.machine_vs_machine(machine1=agent, machine2=agent)

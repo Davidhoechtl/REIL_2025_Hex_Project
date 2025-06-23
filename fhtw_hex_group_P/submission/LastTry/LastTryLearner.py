@@ -14,7 +14,7 @@ from submission.LastTry.GameNetMedium import GameNet as GameNetMedium
 
 
 class Agent(nn.Module):
-    def __init__(self, total_steps, lr=0.0005 ):
+    def __init__(self, board_size, total_steps = 100, lr=0.0005 ):
         super().__init__()
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -23,7 +23,7 @@ class Agent(nn.Module):
         else:
             self.device = torch.device("cpu")
 
-        self.board_size = config.BOARD_SIZE
+        self.board_size = board_size
         self.policy_net = GameNetMedium().to(self.device)
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_steps, eta_min=1e-5)
