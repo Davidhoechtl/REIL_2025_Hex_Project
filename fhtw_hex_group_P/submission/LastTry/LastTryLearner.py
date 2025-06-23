@@ -109,7 +109,8 @@ class Agent(nn.Module):
             "actor": actor_loss.mean().item(),
             "critic": critic_loss.mean().item(),
             "advantage_mean": advantage_raw.mean().item(),
-            "advantage_std": advantage_raw.std().item()
+            "advantage_std": advantage_raw.std().item(),
+            "mean_reward": rewards.mean().item()
         }
 
     def convert_state_to_input(self, board):

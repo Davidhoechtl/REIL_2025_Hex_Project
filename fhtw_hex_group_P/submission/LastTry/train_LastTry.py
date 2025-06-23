@@ -183,12 +183,12 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
-    epochs = 100
-    steps_per_epoch= 2048
-    batch_size = 1024
+    epochs = 200
+    steps_per_epoch= 512
+    batch_size = 256
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
 
-    model = Agent(learning_steps).to(device)
+    model = Agent(config.BOARD_SIZE, learning_steps).to(device)
 
     for epoch in range(epochs):
         # 1. Generate play data from self-play
@@ -223,7 +223,8 @@ if __name__ == "__main__":
         avg_loss = sum(l["loss"] for l in logs) / len(logs)
         avg_actor = sum(l["actor"] for l in logs) / len(logs)
         avg_critic = sum(l["critic"] for l in logs) / len(logs)
-        print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f}")
+        avg_mean_reward = sum(l["mean_reward"] for l in logs) / len(logs)
+        print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f} | MeanReward: {avg_mean_reward:.4}")
 
     print("Training complete.")
 
