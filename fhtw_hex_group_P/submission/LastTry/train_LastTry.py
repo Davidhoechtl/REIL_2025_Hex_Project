@@ -34,7 +34,12 @@ def validate(model, noob, num_games):
 
     return wins/num_games
 
-def create_checkpoint_model(run_id, epoch, avg_reward, color, model):
+def create_checkpoint_model(run_id, epoch, avg_reward, model):
+    color = "white"
+    player_token = model.get_player_token()
+    if player_token == -1:
+        color = "black"
+
     checkpoint_dir = './checkpoints'
     checkpoint_filename = f'{run_id}_model_{color}_epoch_{epoch}_{avg_reward:.3f}.pt'
     checkpoint_path = os.path.join(checkpoint_dir, checkpoint_filename)
@@ -69,9 +74,9 @@ if __name__ == "__main__":
 
     player_token = 1
     best_mean_reward = -float("inf")
-    epochs = 100
-    steps_per_epoch= 512
-    batch_size = 256
+    epochs = 200
+    steps_per_epoch= 2048
+    batch_size = 1024
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
 
     model = Agent(config.BOARD_SIZE, player_token, learning_steps).to(device)
@@ -113,7 +118,7 @@ if __name__ == "__main__":
         new_checkpoint_found = False
         if best_mean_reward < avg_mean_reward:
             # new checkpoint found
-            create_checkpoint_model(run_id, epoch, avg_mean_reward, 'white', model)
+            create_checkpoint_model(run_id, epoch, avg_mean_reward, model)
             best_mean_reward = avg_mean_reward
             new_checkpoint_found = True
 
@@ -122,6 +127,6 @@ if __name__ == "__main__":
         else:
             print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f} | MeanReward: {avg_mean_reward:.4}")
 
-    create_checkpoint_model(run_id, 999, 999, "white_last", model);
+    create_checkpoint_model(run_id, 999, 999, model)
     print("Training complete.")
 

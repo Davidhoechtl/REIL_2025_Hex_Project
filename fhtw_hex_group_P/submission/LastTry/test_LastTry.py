@@ -1,6 +1,6 @@
 from copy import deepcopy
 from submission.baseline_agent import random_agent, greedy_agent
-from submission.facade_group_p import agent_white
+from submission.facade_group_p import agent_white, agent_black
 from hex_engine import hexPosition
 import submission.config as config
 
@@ -37,9 +37,9 @@ def evaluate_agent(env, model_fn, num_games=100):
     print("Evaluating against Random Agent...")
     for _ in range(num_games):
         winner = play_game(model_fn, random_agent)
-        if winner == 1:
+        if winner == player_token:
             results["vs_random"]["wins"] += 1
-        elif winner == -1:
+        elif winner == -player_token:
             results["vs_random"]["losses"] += 1
         else:
             results["vs_random"]["draws"] += 1
@@ -47,9 +47,9 @@ def evaluate_agent(env, model_fn, num_games=100):
     print("Evaluating against Greedy Agent...")
     for _ in range(num_games):
         winner = play_game(model_fn, greedy_agent)
-        if winner == 1:
+        if winner == player_token:
             results["vs_greedy"]["wins"] += 1
-        elif winner == -1:
+        elif winner == -player_token:
             results["vs_greedy"]["losses"] += 1
         else:
             results["vs_greedy"]["draws"] += 1

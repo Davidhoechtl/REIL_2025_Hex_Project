@@ -30,10 +30,11 @@ def load_the_best_model(player_token, board_size):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint_dir = os.path.join(script_dir, 'LastTry', 'checkpoints')
     if player_token == 1:
-        model_file = os.path.join(checkpoint_dir, 'a9a412_model_white_last_epoch_999_999.000.pt')
+        model_file = os.path.join(checkpoint_dir, 'b411e5_model_white_epoch_132_0.897.pt')
         model.load_state_dict(torch.load(model_file)) # player_token == 1 -> white stones
     else:
-        model.load_state_dict(torch.load("black_model.pt")) # player_token == -1 -> black stones
+        model_file = os.path.join(checkpoint_dir, '9664e9_model_black_epoch_165_0.925.pt')
+        model.load_state_dict(torch.load(model_file)) # player_token == -1 -> black stones
 
     if model is not None:
         print("Successfully loaded the model from .pt file.")
