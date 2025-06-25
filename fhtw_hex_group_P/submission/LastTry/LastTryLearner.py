@@ -26,7 +26,7 @@ class Agent(nn.Module):
         self.board_size = board_size
         self.policy_net = GameNetMedium().to(self.device)
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
-        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_steps, eta_min=1e-5)
+        self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optimizer, T_max=total_steps, eta_min=1e-6)
         self.gamma = 0.99
         self.entropy_coef = 0.01
         self.critic_coef = 0.8

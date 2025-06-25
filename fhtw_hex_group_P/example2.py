@@ -11,7 +11,6 @@ game = engine.hexPosition()
 #'submission' is the (sub)package that you provide
 #please use a better name that identifies your group
 from submission.facade_group_p import agent_white, agent_black
-from submission.baseline_agent import random_agent, greedy_agent
 
 #make sure that the agent you have provided is such that the following three
 #method-calls are error-free and as expected

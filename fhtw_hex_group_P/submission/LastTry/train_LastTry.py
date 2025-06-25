@@ -11,6 +11,8 @@ import matplotlib.pyplot as plt
 import os
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from submission.LastTry.gameDataGeneration import generate_play_data as generate_play_data_with_heuristics
+import uuid
+
 
 def generate_play_data(model_fn, enemy_fn, num_steps):
     """
@@ -157,22 +159,16 @@ def validate(model, noob, num_games):
 
     return wins/num_games
 
-def print_training_stats(stats, current_win_rate, step=None):
-    """
-    Print training statistics in a readable format.
+def create_checkpoint_model(run_id, epoch, avg_reward, color, model):
+    checkpoint_dir = './checkpoints'
+    checkpoint_filename = f'{run_id}_model_{color}_epoch_{epoch}_{avg_reward:.3f}.pt'
+    checkpoint_path = os.path.join(checkpoint_dir, checkpoint_filename)
 
-    Args:
-        stats (dict): Dictionary containing loss values and metrics.
-        step (int, optional): Current training step or episode number.
-    """
-    prefix = f"[Step {step}] " if step is not None else ""
-    print(f"{prefix}"
-          f"Loss: {stats['loss']:.4f} | "
-          f"Actor: {stats['actor']:.4f} | "
-          f"Critic: {stats['critic']:.4f} | "
-          f"Adv Mean: {stats['advantage_mean']:.4f} | "
-          f"Adv Std: {stats['advantage_std']:.4f} | " 
-          f"Win Rate: {current_win_rate:.4f}")
+    # check if the checkpoint sub dir is existing
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+
+    torch.save(model.state_dict(), checkpoint_path)
 
 if __name__ == "__main__":
     if torch.cuda.is_available():
@@ -183,7 +179,11 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
-    epochs = 200
+    # id for the trainings run will be used to file name of the checkpoint models
+    run_id = uuid.uuid4().hex[:6]
+
+    best_mean_reward = -float("inf")
+    epochs = 100
     steps_per_epoch= 512
     batch_size = 256
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
@@ -224,7 +224,19 @@ if __name__ == "__main__":
         avg_actor = sum(l["actor"] for l in logs) / len(logs)
         avg_critic = sum(l["critic"] for l in logs) / len(logs)
         avg_mean_reward = sum(l["mean_reward"] for l in logs) / len(logs)
-        print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f} | MeanReward: {avg_mean_reward:.4}")
 
+        new_checkpoint_found = False
+        if best_mean_reward < avg_mean_reward:
+            # new checkpoint found
+            create_checkpoint_model(run_id, epoch, avg_mean_reward, 'white', model)
+            best_mean_reward = avg_mean_reward
+            new_checkpoint_found = True
+
+        if new_checkpoint_found:
+            print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f} | MeanReward: {avg_mean_reward:.4} --> new checkpoint")
+        else:
+            print(f"Epoch {epoch}/{epochs} | Loss: {avg_loss:.4f} | Actor: {avg_actor:.4f} | Critic: {avg_critic:.4f} | WinRate: {win_rate:.4f} | MeanReward: {avg_mean_reward:.4}")
+
+    create_checkpoint_model(run_id, 999, 999, "white_last", model);
     print("Training complete.")
 
