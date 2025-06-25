@@ -44,7 +44,7 @@ def shortest_path_cost(board, player=1):
     return float('inf')
 
 
-def generate_play_data(model_fn, enemy_fn, num_steps):
+def generate_play_data(model, opponent_blender, num_steps):
     """
     Generate play data by simulating games between model_fn and enemy_fn.
 
@@ -68,19 +68,17 @@ def generate_play_data(model_fn, enemy_fn, num_steps):
         game.reset()
         trajectory = []
 
-        player_turn = 1  # The one we collect data for (white)
-
-        # Initial path cost before any moves
-        prev_cost = shortest_path_cost(game.board, player=player_turn)
+        enemy_function = opponent_blender.pick_random_agent() # pick a random enemy for this game
+        player_turn = model.get_player_token()  # The one we collect data for (white)
 
         while game.winner == 0:
             state = deepcopy(game.board)
             action_space = game.get_action_space()
 
             if game.player == player_turn:
-                action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
+                action = model.select_action(torch.tensor(state, dtype=torch.float32), action_space)
             else:
-                action = enemy_fn(torch.tensor(state, dtype=torch.float32), action_space)
+                action = enemy_function(torch.tensor(state, dtype=torch.float32), action_space)
 
             scalar_action = game.coordinate_to_scalar(action)
             game.move(action)

@@ -1,141 +1,16 @@
-import numpy as np
 import torch
 from copy import deepcopy
 import submission.config as config
-from submission.DeepQLearner.DeepQLearner import HexDQNAgent
 from submission.LastTry.LastTryLearner import Agent
 from hex_engine import hexPosition
-from submission.baseline_agent import random_agent, greedy_agent
-import random
-import matplotlib.pyplot as plt
 import os
+
+from submission.baseline_agent import random_agent, greedy_agent, opponent_adjacent_agent, edge_seeking_agent, center_seeking_agent, corner_seeking_agent
+
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 from submission.LastTry.gameDataGeneration import generate_play_data as generate_play_data_with_heuristics
 import uuid
-
-
-def generate_play_data(model_fn, enemy_fn, num_steps):
-    """
-    Generate play data by simulating games between model_fn and enemy_fn.
-
-    Each step generates a transition tuple and stores it into a list, which can
-    later be used for batch training or analysis.
-
-    Args:
-        model_fn: The agent to collect training data for (must have `select_action`)
-        enemy_fn: The opponent agent
-        num_steps: Number of moves to generate
-
-    Returns:
-        List of transition tuples: (state, action, reward, next_state, done)
-    """
-    database = []
-    steps_collected = 0
-    wins = 0
-    total_games = 0
-    while steps_collected < num_steps:
-        game = hexPosition(size=config.BOARD_SIZE)
-        game.reset()
-        trajectory = []
-
-        player_turn = model_fn.get_player_token()  # the one we collect data for
-
-        while game.winner == 0:
-            state = deepcopy(game.board)
-            action_space = game.get_action_space()
-
-            if game.player == player_turn:
-                action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
-            else:
-                # action = enemy_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
-                 action = enemy_fn(torch.tensor(state, dtype=torch.float32), action_space)
-
-            scalar_action = game.coordinate_to_scalar(action)
-            game.move(action)
-            next_state = deepcopy(game.board)
-            done = game.winner != 0
-
-            # Only collect data for model_fn's moves
-            if game.player != player_turn:  # record previous move
-                trajectory.append({
-                    "state": state,
-                    "action": scalar_action,
-                    "next_state": next_state,
-                    "done": done,
-                    "player": player_turn
-                })
-
-        total_games+=1
-        if game.winner == player_turn:
-            wins+=1
-
-        # Assign rewards based on outcome
-        for step in trajectory:
-            if step["player"] == game.winner:
-                step["reward"] = 1
-            elif game.winner == 0:
-                step["reward"] = 0
-            else:
-                step["reward"] = -1
-
-            transition = (
-                torch.tensor(step["state"], dtype=torch.float32),
-                step["action"],
-                step["reward"],
-                torch.tensor(step["next_state"], dtype=torch.float32),
-                step["done"]
-            )
-            database.append(transition)
-            steps_collected += 1
-            if steps_collected >= num_steps:
-                break
-
-    return database, wins/total_games
-
-def generate_self_play_data(model_fn, num_games=10):
-    for game_idx in range(num_games):
-        game = hexPosition(size=config.BOARD_SIZE)
-        game.reset()
-        trajectory = []
-
-        while game.winner == 0:
-            state = deepcopy(game.board)
-            action_space = game.get_action_space()
-
-            # model makes a move
-            action = model_fn.select_action(torch.tensor(state, dtype=torch.float32), action_space)
-            scalar_action = game.coordinate_to_scalar(action)
-
-            game.move(action)
-
-            next_state = deepcopy(game.board)
-            done = game.winner != 0
-
-            # store state before move
-            trajectory.append({
-                "state": state,
-                "action": scalar_action,
-                "next_state": next_state,
-                "done": done,
-                "player": game.player
-            })
-
-        # assign rewards after game ends
-        for step in trajectory:
-            if step["player"] == game.winner:
-                step["reward"] = 1
-            elif game.winner == 0:
-                step["reward"] = 0
-            else:
-                step["reward"] = -1
-
-            model_fn.store_transition(
-                torch.tensor(step["state"], dtype=torch.float32),
-                step["action"],
-                step["reward"],
-                torch.tensor(step["next_state"], dtype=torch.float32),
-                step["done"]
-            )
+from submission.LastTry.enemyBlender import OpponentBlender
 
 def validate(model, noob, num_games):
     wins = 0
@@ -179,6 +54,16 @@ if __name__ == "__main__":
         device = torch.device("cpu")
     print("Using device:", device)
 
+    # picks a random agent for each train game
+    # using more than one agent increases the variety
+    enemy_blender = OpponentBlender()
+    enemy_blender.register_agent(random_agent)
+    enemy_blender.register_agent(greedy_agent)
+    enemy_blender.register_agent(opponent_adjacent_agent)
+    enemy_blender.register_agent(corner_seeking_agent)
+    enemy_blender.register_agent(edge_seeking_agent)
+    enemy_blender.register_agent(center_seeking_agent)
+
     # id for the trainings run will be used to file name of the checkpoint models
     run_id = uuid.uuid4().hex[:6]
 
@@ -190,10 +75,9 @@ if __name__ == "__main__":
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
 
     model = Agent(config.BOARD_SIZE, player_token, learning_steps).to(device)
-
     for epoch in range(epochs):
         # 1. Generate play data from self-play
-        transitions, win_rate = generate_play_data_with_heuristics(model, random_agent, steps_per_epoch)
+        transitions, win_rate = generate_play_data_with_heuristics(model, enemy_blender, steps_per_epoch)
 
         # 2. Unpack the data
         states, actions, rewards, next_states, dones = zip(*transitions)
