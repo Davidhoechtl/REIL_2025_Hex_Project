@@ -4,9 +4,12 @@ from hex_engine import hexPosition
 import heapq
 import submission.config as config
 
+import heapq
+
 def shortest_path_cost(board, player=1):
     size = len(board)
-    # Build cost grid: 0 for player's stones, 1 for empty, inf for opponent stones
+
+    # Create cost grid: 0 for player's stones, 1 for empty, inf for opponent's stones
     cost_grid = [[float('inf')] * size for _ in range(size)]
     for r in range(size):
         for c in range(size):
@@ -14,35 +17,56 @@ def shortest_path_cost(board, player=1):
                 cost_grid[r][c] = 0
             elif board[r][c] == 0:
                 cost_grid[r][c] = 1
-            else:
-                cost_grid[r][c] = float('inf')
-
-    # Initialize priority queue with all left edge positions (for white)
-    pq = []
-    dist = [[float('inf')] * size for _ in range(size)]
-    for r in range(size):
-        if cost_grid[r][0] != float('inf'):
-            dist[r][0] = cost_grid[r][0]
-            heapq.heappush(pq, (dist[r][0], (r, 0)))
 
     # Directions for hex neighbors
-    directions = [(-1,0),(1,0),(0,-1),(0,1),(-1,1),(1,-1)]
+    directions = [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, 1), (1, -1)]
 
-    while pq:
-        current_dist, (r, c) = heapq.heappop(pq)
-        if c == size - 1:  # reached right edge
-            return current_dist
-        if current_dist > dist[r][c]:
-            continue
-        for dr, dc in directions:
-            nr, nc = r + dr, c + dc
-            if 0 <= nr < size and 0 <= nc < size:
-                nd = current_dist + cost_grid[nr][nc]
-                if nd < dist[nr][nc]:
-                    dist[nr][nc] = nd
-                    heapq.heappush(pq, (nd, (nr, nc)))
-    return float('inf')
+    pq = []
+    dist = [[float('inf')] * size for _ in range(size)]
 
+    if player == 1:
+        # White connects LEFT to RIGHT
+        for r in range(size):
+            if cost_grid[r][0] != float('inf'):
+                dist[r][0] = cost_grid[r][0]
+                heapq.heappush(pq, (dist[r][0], (r, 0)))
+
+        while pq:
+            current_dist, (r, c) = heapq.heappop(pq)
+            if c == size - 1:
+                return current_dist
+            if current_dist > dist[r][c]:
+                continue
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < size and 0 <= nc < size:
+                    nd = current_dist + cost_grid[nr][nc]
+                    if nd < dist[nr][nc]:
+                        dist[nr][nc] = nd
+                        heapq.heappush(pq, (nd, (nr, nc)))
+    else:
+        # Black connects TOP to BOTTOM
+        for c in range(size):
+            if cost_grid[0][c] != float('inf'):
+                dist[0][c] = cost_grid[0][c]
+                heapq.heappush(pq, (dist[0][c], (0, c)))
+
+        while pq:
+            current_dist, (r, c) = heapq.heappop(pq)
+            if r == size - 1:
+                return current_dist
+            if current_dist > dist[r][c]:
+                continue
+            for dr, dc in directions:
+                nr, nc = r + dr, c + dc
+                if 0 <= nr < size and 0 <= nc < size:
+                    nd = current_dist + cost_grid[nr][nc]
+                    if nd < dist[nr][nc]:
+                        dist[nr][nc] = nd
+                        heapq.heappush(pq, (nd, (nr, nc)))
+
+     # If path was not found
+    raise RuntimeError(f"Player {player} has no path from start to goal on the current board.")
 
 def generate_play_data(model, opponent_blender, num_steps):
     """
