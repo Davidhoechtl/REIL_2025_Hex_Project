@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from submission.LastTry.GameNetMedium import GameNet as GameNetMedium
+from submission.LastTry.GameNetBig import GameNet as GameNetBig
 
 class Agent(nn.Module):
     def __init__(self, board_size, player_token, total_steps = 100, lr=0.0005 ):
