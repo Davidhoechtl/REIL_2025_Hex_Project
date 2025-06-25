@@ -25,7 +25,7 @@ def agent_black(board, action_set):
     return _agent_black.select_action(torch.tensor(board, dtype=torch.float32), action_set)
 
 def load_the_best_model(player_token, board_size):
-    model = Agent(board_size)
+    model = Agent(board_size, player_token)
     # Get the directory where the script resides
     script_dir = os.path.dirname(os.path.abspath(__file__))
     checkpoint_dir = os.path.join(script_dir, 'LastTry', 'checkpoints')

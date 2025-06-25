@@ -1,20 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
-from collections import deque
-
-from torch.xpu import device
-
-import submission.config as config
-from copy import deepcopy
-from submission.LastTry.GameNetBig import GameNet as GameNetBig
-from submission.LastTry.GameNetSmall import GameNet as GameNetSmall
 from submission.LastTry.GameNetMedium import GameNet as GameNetMedium
 
-
 class Agent(nn.Module):
-    def __init__(self, board_size, total_steps = 100, lr=0.0005 ):
+    def __init__(self, board_size, player_token, total_steps = 100, lr=0.0005 ):
         super().__init__()
         if torch.cuda.is_available():
             self.device = torch.device("cuda")
@@ -23,6 +13,7 @@ class Agent(nn.Module):
         else:
             self.device = torch.device("cpu")
 
+        self.player_token = player_token
         self.board_size = board_size
         self.policy_net = GameNetMedium().to(self.device)
         self.optimizer = torch.optim.Adam(self.policy_net.parameters(), lr=lr)
@@ -30,6 +21,10 @@ class Agent(nn.Module):
         self.gamma = 0.99
         self.entropy_coef = 0.01
         self.critic_coef = 0.8
+
+    def get_player_token(self):
+        """ returns the agents orientation (playing 1s or -1s, playing white or black)"""
+        return self.player_token
 
     def select_action(self, board, action_set):
         """
@@ -122,14 +117,14 @@ class Agent(nn.Module):
 
         Assumes:
           - board is a 2D tensor of shape (board_size, board_size)
-          - values: 1 for current player, -1 for opponent, 0 for empty
+          - values: self.player_token for current player, -self.player_token for opponent, 0 for empty
         """
         if len(board.shape) == 2:
             board_size = board.shape[0]
-            player_plane = (board == 1).float()
-            opponent_plane = (board == -1).float()
+            player_plane = (board == float(self.player_token)).float()
+            opponent_plane = (board == float(-self.player_token)).float()
             legal_plane = (board == 0).float()
-            player_turn = 1 if (board == 1).sum() <= (board == -1).sum() else 0
+            #player_turn = 1 if (board == 1).sum() <= (board == -1).sum() else 0
 
             input_tensor = torch.stack([player_plane, opponent_plane, legal_plane], dim=0)
             return input_tensor

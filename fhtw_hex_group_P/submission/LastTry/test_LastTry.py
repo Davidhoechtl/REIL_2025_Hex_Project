@@ -10,9 +10,16 @@ def evaluate_agent(env, model_fn, num_games=100):
         "vs_random": {"wins": 0, "losses": 0, "draws": 0},
     }
 
+    # evaluate the player_token from function address
+    player_token = 0
+    if model_fn is agent_white:
+        player_token = 1
+    else:
+        player_token = -1
+
     def play_game(agent1, agent2):
         env.reset()
-        current_player = 1
+        current_player = player_token
         while env.winner == 0:
             state = deepcopy(env.board)
             action_set = env.get_action_space()

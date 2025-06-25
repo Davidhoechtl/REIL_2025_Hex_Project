@@ -38,7 +38,7 @@ def generate_play_data(model_fn, enemy_fn, num_steps):
         game.reset()
         trajectory = []
 
-        player_turn = 1  # the one we collect data for
+        player_turn = model_fn.get_player_token()  # the one we collect data for
 
         while game.winner == 0:
             state = deepcopy(game.board)
@@ -182,13 +182,14 @@ if __name__ == "__main__":
     # id for the trainings run will be used to file name of the checkpoint models
     run_id = uuid.uuid4().hex[:6]
 
+    player_token = 1
     best_mean_reward = -float("inf")
     epochs = 100
     steps_per_epoch= 512
     batch_size = 256
     learning_steps = (steps_per_epoch / batch_size) * epochs # number how many times we will train the model
 
-    model = Agent(config.BOARD_SIZE, learning_steps).to(device)
+    model = Agent(config.BOARD_SIZE, player_token, learning_steps).to(device)
 
     for epoch in range(epochs):
         # 1. Generate play data from self-play
