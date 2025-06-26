@@ -1,18 +1,17 @@
 import torch
-from copy import deepcopy
-import submission.config as config
-from submission.LastTry.LastTryLearner import Agent
-from hex_engine import hexPosition
 import os
-
-from submission.baseline_agent import random_agent, greedy_agent, opponent_adjacent_agent, edge_seeking_agent, center_seeking_agent, corner_seeking_agent
-
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
-from submission.LastTry.gameDataGeneration import generate_play_data as generate_play_data_with_heuristics
 import uuid
-from submission.LastTry.enemyBlender import OpponentBlender
+import submission.config as config
+from copy import deepcopy
+from submission.FinalModel.LastTryLearner import Agent
+from hex_engine import hexPosition
+from submission.baseline_agent import random_agent, greedy_agent, opponent_adjacent_agent, edge_seeking_agent, center_seeking_agent, corner_seeking_agent
+from submission.FinalModel.gameDataGeneration import generate_play_data as generate_play_data_with_heuristics
+from submission.FinalModel.enemyBlender import OpponentBlender
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 def validate(model, noob, num_games):
+    """runs a test on how mayn wins the model wins against noob (opponent agent)"""
     wins = 0
     for i in range(num_games):
         game = hexPosition(size=config.BOARD_SIZE)
@@ -35,6 +34,7 @@ def validate(model, noob, num_games):
     return wins/num_games
 
 def create_checkpoint_model(run_id, epoch, avg_reward, model):
+    """Saves the model weights in a .pt file, in a subfolder called checkpoints"""
     color = "white"
     player_token = model.get_player_token()
     if player_token == -1:
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     # id for the trainings run will be used to file name of the checkpoint models
     run_id = uuid.uuid4().hex[:6]
 
-    player_token = 1
+    player_token = 1 # defines if model is trained as white agent or black agent
     best_mean_reward = -float("inf")
     epochs = 200
     steps_per_epoch= 2048

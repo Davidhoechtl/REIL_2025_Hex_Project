@@ -1,6 +1,7 @@
 import random
 
 class OpponentBlender:
+    """can be used to register baseline agents and provide a convenient way to get a random enemy from the pool """
     def __init__(self):
         self.agents = []
 

@@ -7,6 +7,7 @@ import submission.config as config
 import heapq
 
 def shortest_path_cost(board, player=1):
+    """ Uses Pathfinding algorithm to find shortest path to the goal"""
     size = len(board)
 
     # Create cost grid: 0 for player's stones, 1 for empty, inf for opponent's stones

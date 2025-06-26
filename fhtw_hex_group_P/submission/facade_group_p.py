@@ -1,4 +1,4 @@
-from submission.LastTry.LastTryLearner import Agent
+from submission.FinalModel.LastTryLearner import Agent
 import torch
 import os
 
@@ -30,7 +30,7 @@ def load_the_best_model(player_token, board_size):
     model = Agent(board_size, player_token)
     # Get the directory where the script resides
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    checkpoint_dir = os.path.join(script_dir, 'LastTry', 'checkpoints')
+    checkpoint_dir = os.path.join(script_dir, 'FinalModel', 'checkpoints')
     if player_token == 1:
         model_file = os.path.join(checkpoint_dir, 'white.pt')
         model.load_state_dict(torch.load(model_file, map_location=device)) # player_token == 1 -> white stones

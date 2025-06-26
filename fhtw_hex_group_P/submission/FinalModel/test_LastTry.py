@@ -5,6 +5,7 @@ from hex_engine import hexPosition
 import submission.config as config
 
 def evaluate_agent(env, model_fn, num_games=100):
+    """Tests the model against baseline agents like random, greedy"""
     results = {
         "vs_greedy": {"wins": 0, "losses": 0, "draws": 0},
         "vs_random": {"wins": 0, "losses": 0, "draws": 0},
